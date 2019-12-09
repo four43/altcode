@@ -5,11 +5,11 @@
 Ω | ohm sign
 × | multiplication
 ± | plus minus
-∆ | delta inciment
+∆ | delta increment
 ∏ | n-ary product
 ∑ | n-ary sum
 √ | square root <small>sqrt</small>
-∞ | inifinty
+∞ | infinity
 ∩ | intersection
 ∫ | integral
 ≈ | almost equal
