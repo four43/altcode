@@ -3,18 +3,15 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 ARGS=("$@")
-USAGE="$(basename "$0") -t|--skin-tone [tone] -o|--output -c|--force-cli -g|--force-gui
+USAGE="$(basename "$0") -t|--skin-tone [tone] -o|--output -s|--selector
 
 By default, will prompt a user to select an emoji to copy to the clipboard using fzf if in a terminal, or rofi in a gui.
 
 where:
     Options:
         -t|--skin-tone (optional) A skin to to apply to select emojis: neutral, light, medium-light, moderate, dark-brown, black
-        -o|--output - Instead of outputting to stdout, output to one of: xdotool (auto type), clipboard, or stdout/-
-    Flags:
-        -c|--force-cli - Force fzf CLI instead of GUI rofi selection
-        -g|--force-gui - Force rofi GUI instead of CLI fzf selection
-
+        -o|--output (optional) - Instead of outputting to stdout, output to one of: xdotool (auto type), clipboard, or stdout/-
+        -s|--selector (optional) - Uses fzf for cli environments or rofi for guis. Override by specifying one of: fzf, rofi
 "
 
 function process_args() {
@@ -50,13 +47,9 @@ function process_args() {
                 esac
                 ARGS=("${ARGS[@]:2}")
                 ;;
-            -c|--force-cli)
-                FORCE_CLI="true"
-                ARGS=("${ARGS[@]:1}")
-                ;;
-            -g|--force-gui)
-                FORCE_GUI="true"
-                ARGS=("${ARGS[@]:1}")
+            -s|--selector)
+                SELECTOR="$VALUE"
+                ARGS=("${ARGS[@]:2}")
                 ;;
             -o|--output)
                 OUTPUT_STRATEGY="$VALUE"
@@ -92,7 +85,7 @@ emoji_files="$DIR/emojis.d/"*.txt
 
 function select_emoji() {
     # Prompt user to select from list of emojis
-    if [[ -t 0 ]] && [[ -z "$FORCE_GUI" ]] || [[ -n "$FORCE_CLI" ]] ; then
+    if [[ $CLI_ENV == 0 ]] || [[ "$SELECTOR" == "fzf" ]]; then
         cat - | fzf
     else
         cat - | rofi -dmenu -markup-rows -i -multi-select -p '😀' -kb-custom-1 'Alt+c' -kb-custom-2 'Alt+t' -kb-custom-3 'Alt+p'
@@ -101,6 +94,15 @@ function select_emoji() {
 
 function output_strategy_pre() {
     # Pre-selection hook for output strategy
+    if [[ -z "$OUTPUT_STRATEGY" ]]; then
+        # Set a "smart" default. Hopefully smart anyway.
+        if [[ $CLI_ENV == 0 ]] || [[ "$SELECTOR" == "fzf" ]]; then
+            export OUTPUT_STRATEGY="stdout"
+        else
+            export OUTPUT_STRATEGY="xdotool"
+        fi
+    fi
+
     if [[ "$OUTPUT_STRATEGY" == "xdotool" ]]; then
         X_ACTIVE_WINDOW=$(xdotool getactivewindow)
     fi
@@ -119,6 +121,8 @@ function output_strategy() {
         exit 1
     fi
 }
+
+CLI_ENV=$([[ -t 0 ]]; echo $?)
 
 output_strategy_pre
 
