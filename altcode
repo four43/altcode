@@ -3,15 +3,15 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 ARGS=("$@")
-USAGE="$(basename "$0") -t|--skin-tone [tone] -o|--output -s|--selector
+USAGE="$(basename "$0") -o|--output [xdotool|clipboard|stdout|-] -s|--selector [fzf|rofi] -t|--skin-tone [neutral|light|medium-light|moderate|dark-brown|black]
 
-By default, will prompt a user to select an emoji to copy to the clipboard using fzf if in a terminal, or rofi in a gui.
+By default, will prompt a user to select an special character to copy to the clipboard using fzf if in a terminal, or rofi in a gui.
 
 where:
     Options:
+        -o|--output (optional) - Instead of outputting to stdout, output to one of: xdotool (auto type), clipboard, or stdout, -
+        -s|--selector (optional) - Uses fzf for CLI environments or rofi for GUIs. Override by specifying one of: fzf, rofi
         -t|--skin-tone (optional) A skin to to apply to select emojis: neutral, light, medium-light, moderate, dark-brown, black
-        -o|--output (optional) - Instead of outputting to stdout, output to one of: xdotool (auto type), clipboard, or stdout/-
-        -s|--selector (optional) - Uses fzf for cli environments or rofi for guis. Override by specifying one of: fzf, rofi
 "
 
 function process_args() {
@@ -20,6 +20,10 @@ function process_args() {
         VALUE="${ARGS[1]}"
 
         case "${KEY}" in
+            -h|--help)
+                echo "$USAGE">&2
+                exit 0
+                ;;
             -t|--skin-tone)
                 SKIN_KEY="$VALUE"
                 case "${SKIN_KEY}" in
@@ -81,11 +85,11 @@ function process_args() {
 process_args
 
 
-emoji_files="$DIR/emojis.d/"*.txt
+altcode_files="$DIR/altcode.d/"*.txt
 
-function select_emoji() {
-    # Prompt user to select from list of emojis
-    if [[ $CLI_ENV == 0 ]] || [[ "$SELECTOR" == "fzf" ]]; then
+function select_char() {
+    # Prompt user to select from list of special characters
+    if [[ $CLI_ENV == 0 ]] || [[ "$SELECTOR" == "fzf" ]] && [[ "$SELECTOR" != "rofi" ]]; then
         cat - | fzf
     else
         cat - | rofi -dmenu -markup-rows -i -multi-select -p '😀' -kb-custom-1 'Alt+c' -kb-custom-2 'Alt+t' -kb-custom-3 'Alt+p'
@@ -126,21 +130,21 @@ CLI_ENV=$([[ -t 0 ]]; echo $?)
 
 output_strategy_pre
 
-emoji=$(
-    cat $emoji_files \
-        | select_emoji \
+special_cahr=$(
+    cat $altcode_files \
+        | select_char \
         | sed -n -E -e 's/^(.+) \| [^\|]+$/\1/p'
     )
 
-emoji_byte_len=$(
+special_char_len=$(
     oLang=$LANG oLcAll=$LC_ALL
     LANG=C LC_ALL=C
-    echo ${#emoji}
+    echo ${#special_cahr}
     LANG=$oLang LC_ALL=$oLcAll
 )
 
-if grep -Fxq "$emoji" "$DIR/emojis.d/emoji_modifiers.meta"; then
-    echo "${emoji}${SKIN_TONE}" | output_strategy
+if grep -Fxq "$special_cahr" "$DIR/altcode.d/emoji_modifiers.meta"; then
+    echo "${special_cahr}${SKIN_TONE}" | output_strategy
 else
-    echo "$emoji" | output_strategy
+    echo "$special_cahr" | output_strategy
 fi
