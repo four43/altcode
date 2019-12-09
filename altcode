@@ -103,11 +103,11 @@ function output_strategy_pre() {
         if [[ $CLI_ENV == 0 ]] || [[ "$SELECTOR" == "fzf" ]]; then
             export OUTPUT_STRATEGY="stdout"
         else
-            export OUTPUT_STRATEGY="xdotool"
+            export OUTPUT_STRATEGY="copypaste"
         fi
     fi
 
-    if [[ "$OUTPUT_STRATEGY" == "xdotool" ]]; then
+    if [[ "$OUTPUT_STRATEGY" == "xdotool" ]] || [[ "$OUTPUT_STRATEGY" == "copypaste" ]]; then
         X_ACTIVE_WINDOW=$(xdotool getactivewindow)
     fi
 }
@@ -116,6 +116,12 @@ function output_strategy() {
     # Where to send our output
     if [[ "$OUTPUT_STRATEGY" == "xdotool" ]]; then
         xdotool type --clearmodifiers --window $X_ACTIVE_WINDOW $(cat -)
+    elif [[ "$OUTPUT_STRATEGY" == "copypaste" ]]; then
+        old_clipboard_content=$(xclip -o)
+        cat - | tr '\n' ' ' | xclip -i -selection clipboard
+        xdotool windowfocus --sync $X_ACTIVE_WINDOW key --clearmodifiers Shift+Insert sleep 0.05
+        # Put clipboard contents back
+        echo -n $old_clipboard_content | xclip -i -selection clipboard
     elif [[ "$OUTPUT_STRATEGY" == "clipboard" ]]; then
         cat - | xclip -i -selection clipboard
     elif [[ "$OUTPUT_STRATEGY" == "stdout" ]] || [[ "$OUTPUT_STRATEGY" == "-" ]]; then
