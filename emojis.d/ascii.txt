@@ -1,0 +1,7 @@
+ಠ_ಠ | disapprove <small>ascii</small>
+ლ(ಥ_ಥლ) | plead <small>ascii</small>
+ლ(ಠ益ಠლ) | plead-angry <small>ascii</small>
+ಥ_ಥ | cry <small>ascii</small>
+¯\_(ツ)_/¯ | shrug <small>ascii</small>
+(╯°□°)╯︵┻━┻ | table-flip <small>ascii</small>
+┬─┬ノ(º_ºノ) | table-put-back <small>ascii</small>

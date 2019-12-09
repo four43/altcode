@@ -1,0 +1,19 @@
+© | copyright
+® | registered trademark sign
+™ | trademark sign
+µ | microsign
+Ω | ohm sign
+× | multiplication
+± | plus minus
+∆ | delta inciment
+∏ | n-ary product
+∑ | n-ary sum
+√ | square root <small>sqrt</small>
+∞ | inifinty
+∩ | intersection
+∫ | integral
+≈ | almost equal
+≠ | not equal
+≤ | less than or equal to <small>lte</small>
+≥ | greater than or equal to <small>gte</small>
+° | degree

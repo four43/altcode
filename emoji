@@ -1,0 +1,142 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+ARGS=("$@")
+USAGE="$(basename "$0") -t|--skin-tone [tone] -o|--output -c|--force-cli -g|--force-gui
+
+By default, will prompt a user to select an emoji to copy to the clipboard using fzf if in a terminal, or rofi in a gui.
+
+where:
+    Options:
+        -t|--skin-tone (optional) A skin to to apply to select emojis: neutral, light, medium-light, moderate, dark-brown, black
+        -o|--output - Instead of outputting to stdout, output to one of: xdotool (auto type), clipboard, or stdout/-
+    Flags:
+        -c|--force-cli - Force fzf CLI instead of GUI rofi selection
+        -g|--force-gui - Force rofi GUI instead of CLI fzf selection
+
+"
+
+function process_args() {
+    while [[ "${#ARGS[@]}" -gt 0 ]]; do
+        KEY="${ARGS[0]}"
+        VALUE="${ARGS[1]}"
+
+        case "${KEY}" in
+            -t|--skin-tone)
+                SKIN_KEY="$VALUE"
+                case "${SKIN_KEY}" in
+                    "neutral")
+                        SKIN_TONE=""
+                        ;;
+                    "light")
+                        SKIN_TONE="🏻"
+                        ;;
+                    "medium-light")
+                        SKIN_TONE="🏼"
+                        ;;
+                    "moderate")
+                        SKIN_TONE="🏽"
+                        ;;
+                    "dark-brown")
+                        SKIN_TONE="🏾"
+                        ;;
+                    "black")
+                        SKIN_TONE="🏿"
+                        ;;
+                    *)
+                        SKIN_TONE=""
+                        ;;
+                esac
+                ARGS=("${ARGS[@]:2}")
+                ;;
+            -c|--force-cli)
+                FORCE_CLI="true"
+                ARGS=("${ARGS[@]:1}")
+                ;;
+            -g|--force-gui)
+                FORCE_GUI="true"
+                ARGS=("${ARGS[@]:1}")
+                ;;
+            -o|--output)
+                OUTPUT_STRATEGY="$VALUE"
+                ARGS=("${ARGS[@]:2}")
+                ;;
+            *)  # Unknown Option or "key=value"
+                while IFS='=' read -ra SPLIT <<< ${KEY}; do
+                    # Split by the "=" and add back to our arguments array
+                    for i in "${SPLIT[@]}"; do
+                      ARGS+=("${i}")
+                    done
+                    FOUND_SPLIT=1
+                    ARGS=("${ARGS[@]:1}")
+                    break
+                done
+                if [[ -z "${FOUND_SPLIT}" ]]; then
+                    echo "Unknown option $1"
+                    echo "${USAGE}"
+                    exit 1
+                fi
+                ;;
+            --)
+                ARGS=("${ARGS[@]:1}")
+                break
+                ;;
+        esac
+    done
+}
+process_args
+
+
+emoji_files="$DIR/emojis.d/"*.txt
+
+function select_emoji() {
+    # Prompt user to select from list of emojis
+    if [[ -t 0 ]] && [[ -z "$FORCE_GUI" ]] || [[ -n "$FORCE_CLI" ]] ; then
+        cat - | fzf
+    else
+        cat - | rofi -dmenu -markup-rows -i -multi-select -p '😀' -kb-custom-1 'Alt+c' -kb-custom-2 'Alt+t' -kb-custom-3 'Alt+p'
+    fi
+}
+
+function output_strategy_pre() {
+    # Pre-selection hook for output strategy
+    if [[ "$OUTPUT_STRATEGY" == "xdotool" ]]; then
+        X_ACTIVE_WINDOW=$(xdotool getactivewindow)
+    fi
+}
+
+function output_strategy() {
+    # Where to send our output
+    if [[ "$OUTPUT_STRATEGY" == "xdotool" ]]; then
+        xdotool type --clearmodifiers --window $X_ACTIVE_WINDOW $(cat -)
+    elif [[ "$OUTPUT_STRATEGY" == "clipboard" ]]; then
+        cat - | xclip -i -selection clipboard
+    elif [[ "$OUTPUT_STRATEGY" == "stdout" ]] || [[ "$OUTPUT_STRATEGY" == "-" ]]; then
+        cat -
+    else
+        echo "Unknown output strategy: $OUTPUT_STRATEGY" >&2
+        exit 1
+    fi
+}
+
+output_strategy_pre
+
+emoji=$(
+    cat $emoji_files \
+        | select_emoji \
+        | sed -n -E -e 's/^(.+) \| [^\|]+$/\1/p'
+    )
+
+emoji_byte_len=$(
+    oLang=$LANG oLcAll=$LC_ALL
+    LANG=C LC_ALL=C
+    echo ${#emoji}
+    LANG=$oLang LC_ALL=$oLcAll
+)
+
+if grep -Fxq "$emoji" "$DIR/emojis.d/emoji_modifiers.meta"; then
+    echo "${emoji}${SKIN_TONE}" | output_strategy
+else
+    echo "$emoji" | output_strategy
+fi
