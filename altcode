@@ -1,4 +1,5 @@
 #!/bin/bash
+set -eo pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -84,29 +85,45 @@ function process_args() {
 }
 process_args
 
+CLI_ENV=$([[ -t 0 ]]; echo $?)
+
+# Set SELECTOR Default (smart based on our environment)
+if [[ -z "$SELECTOR" ]]; then
+    if [[ $CLI_ENV == 0 ]]; then
+        SELECTOR="fzf"
+    else
+        SELECTOR="rofi"
+    fi
+fi
+
+# Set OUTPUT_STRATEGY Default (smart based on our environment)
+if [[ -z "$OUTPUT_STRATEGY" ]]; then
+    if [[ $CLI_ENV == 0 ]]; then
+        OUTPUT_STRATEGY="stdout"
+    else
+        OUTPUT_STRATEGY="copypaste"
+    fi
+fi
 
 altcode_files="$DIR/altcode.d/"*.txt
 
 function select_char() {
     # Prompt user to select from list of special characters
-    if [[ $CLI_ENV == 0 ]] || [[ "$SELECTOR" == "fzf" ]] && [[ "$SELECTOR" != "rofi" ]]; then
-        cat - | fzf
-    else
-        cat - | rofi -dmenu -markup-rows -i -multi-select -p '😀' -kb-custom-1 'Alt+c' -kb-custom-2 'Alt+t' -kb-custom-3 'Alt+p'
-    fi
+    case "${SELECTOR}" in
+        fzf)
+            cat - | fzf
+            ;;
+        rofi)
+            cat - | rofi -dmenu -markup-rows -i -multi-select -p '😀' -kb-custom-1 'Alt+c' -kb-custom-2 'Alt+t' -kb-custom-3 'Alt+p'
+            ;;
+        *)
+            echo "Unknown selection strategy: ${SELECTOR}" >&2
+            exit 1
+    esac
 }
 
 function output_strategy_pre() {
     # Pre-selection hook for output strategy
-    if [[ -z "$OUTPUT_STRATEGY" ]]; then
-        # Set a "smart" default. Hopefully smart anyway.
-        if [[ $CLI_ENV == 0 ]] || [[ "$SELECTOR" == "fzf" ]]; then
-            export OUTPUT_STRATEGY="stdout"
-        else
-            export OUTPUT_STRATEGY="copypaste"
-        fi
-    fi
-
     if [[ "$OUTPUT_STRATEGY" == "xdotool" ]] || [[ "$OUTPUT_STRATEGY" == "copypaste" ]]; then
         X_ACTIVE_WINDOW=$(xdotool getactivewindow)
     fi
@@ -114,43 +131,52 @@ function output_strategy_pre() {
 
 function output_strategy() {
     # Where to send our output
-    if [[ "$OUTPUT_STRATEGY" == "xdotool" ]]; then
-        xdotool type --clearmodifiers --window $X_ACTIVE_WINDOW $(cat -)
-    elif [[ "$OUTPUT_STRATEGY" == "copypaste" ]]; then
-        old_clipboard_content=$(xclip -o)
-        cat - | tr '\n' ' ' | xclip -i -selection clipboard
-        xdotool windowfocus --sync $X_ACTIVE_WINDOW key --clearmodifiers Shift+Insert sleep 0.05
-        # Put clipboard contents back
-        echo -n $old_clipboard_content | xclip -i -selection clipboard
-    elif [[ "$OUTPUT_STRATEGY" == "clipboard" ]]; then
-        cat - | xclip -i -selection clipboard
-    elif [[ "$OUTPUT_STRATEGY" == "stdout" ]] || [[ "$OUTPUT_STRATEGY" == "-" ]]; then
-        cat -
-    else
-        echo "Unknown output strategy: $OUTPUT_STRATEGY" >&2
-        exit 1
-    fi
-}
+    case "${OUTPUT_STRATEGY}" in
+        xdotool)
+            xdotool type --clearmodifiers --window $X_ACTIVE_WINDOW $(cat -)
+            ;;
+        copypaste)
+            old_clipboard_content_primary="$(xclip -o -selection primary)"
+            old_clipboard_content_clipboard="$(xclip -o -selection clipboard)"
 
-CLI_ENV=$([[ -t 0 ]]; echo $?)
+            character=$(cat -)
+            echo -n "$character" | xclip -i -selection primary
+            echo -n "$character" | xclip -i -selection clipboard
+            xdotool windowfocus --sync $X_ACTIVE_WINDOW key --clearmodifiers Shift+Insert sleep 0.05
+            # Put clipboard contents back
+            echo -n $old_clipboard_content_primary | xclip -i -selection primary
+            echo -n $old_clipboard_content_clipboard| xclip -i -selection clipboard
+            ;;
+        clipboard)
+            cat - | xclip -i -selection clipboard
+            ;;
+        stdout|-)
+            cat -
+            ;;
+        *)
+            echo "Unknown output strategy: $OUTPUT_STRATEGY" >&2
+            exit 1
+    esac
+}
 
 output_strategy_pre
 
-special_cahr=$(
+special_char=$(
     cat $altcode_files \
         | select_char \
-        | sed -n -E -e 's/^(.+) \| [^\|]+$/\1/p'
+        | sed -n -E -e 's/^(.+) \| [^\|]+$/\1/p' \
+        | tr -d '\n'
     )
 
 special_char_len=$(
     oLang=$LANG oLcAll=$LC_ALL
     LANG=C LC_ALL=C
-    echo ${#special_cahr}
+    echo ${#special_char}
     LANG=$oLang LC_ALL=$oLcAll
 )
 
-if grep -Fxq "$special_cahr" "$DIR/altcode.d/emoji_modifiers.meta"; then
-    echo "${special_cahr}${SKIN_TONE}" | output_strategy
+if grep -Fxq "$special_char" "$DIR/altcode.d/emoji_modifiers.meta"; then
+    echo "${special_char}${SKIN_TONE}" | output_strategy
 else
-    echo "$special_cahr" | output_strategy
+    echo "${special_char}" | output_strategy
 fi
