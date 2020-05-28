@@ -15,75 +15,74 @@ where:
         -t|--skin-tone (optional) A skin to to apply to select emojis: neutral, light, medium-light, moderate, dark-brown, black
 "
 
-function process_args() {
-    while [[ "${#ARGS[@]}" -gt 0 ]]; do
-        KEY="${ARGS[0]}"
-        VALUE="${ARGS[1]}"
+while [[ "${#ARGS[@]}" -gt 0 ]]; do
+    KEY="${ARGS[0]}"
+    VALUE="${ARGS[1]}"
 
-        case "${KEY}" in
-            -h|--help)
-                echo "$USAGE">&2
-                exit 0
-                ;;
-            -t|--skin-tone)
-                SKIN_KEY="$VALUE"
-                case "${SKIN_KEY}" in
-                    "neutral")
-                        SKIN_TONE=""
-                        ;;
-                    "light")
-                        SKIN_TONE="🏻"
-                        ;;
-                    "medium-light")
-                        SKIN_TONE="🏼"
-                        ;;
-                    "moderate")
-                        SKIN_TONE="🏽"
-                        ;;
-                    "dark-brown")
-                        SKIN_TONE="🏾"
-                        ;;
-                    "black")
-                        SKIN_TONE="🏿"
-                        ;;
-                    *)
-                        SKIN_TONE=""
-                        ;;
-                esac
-                ARGS=("${ARGS[@]:2}")
-                ;;
-            -s|--selector)
-                SELECTOR="$VALUE"
-                ARGS=("${ARGS[@]:2}")
-                ;;
-            -o|--output)
-                OUTPUT_STRATEGY="$VALUE"
-                ARGS=("${ARGS[@]:2}")
-                ;;
-            *)  # Unknown Option or "key=value"
-                while IFS='=' read -ra SPLIT <<< ${KEY}; do
-                    # Split by the "=" and add back to our arguments array
-                    for i in "${SPLIT[@]}"; do
-                      ARGS+=("${i}")
-                    done
-                    FOUND_SPLIT=1
-                    ARGS=("${ARGS[@]:1}")
-                    break
+    case "${KEY}" in
+        -h|--help)
+            echo "$USAGE">&2
+            exit 0
+            ;;
+        -t|--skin-tone)
+            SKIN_KEY="$VALUE"
+            case "${SKIN_KEY}" in
+                "neutral")
+                    SKIN_TONE=""
+                    ;;
+                "light")
+                    SKIN_TONE="🏻"
+                    ;;
+                "medium-light")
+                    SKIN_TONE="🏼"
+                    ;;
+                "moderate")
+                    SKIN_TONE="🏽"
+                    ;;
+                "dark-brown")
+                    SKIN_TONE="🏾"
+                    ;;
+                "black")
+                    SKIN_TONE="🏿"
+                    ;;
+                *)
+                    SKIN_TONE=""
+                    ;;
+            esac
+            ARGS=("${ARGS[@]:2}")
+            ;;
+        -s|--selector)
+            SELECTOR="$VALUE"
+            ARGS=("${ARGS[@]:2}")
+            ;;
+        -o|--output)
+            OUTPUT_STRATEGY="$VALUE"
+            ARGS=("${ARGS[@]:2}")
+            ;;
+        --)
+            ARGS=("${ARGS[@]:1}")
+            break
+            ;;
+        *)  # Unknown Option or "key=value"
+            while IFS='=' read -ra SPLIT <<< ${KEY}; do
+                # Split by the "=" and add back to our arguments array
+                for i in "${SPLIT[@]}"; do
+                  ARGS+=("${i}")
                 done
-                if [[ -z "${FOUND_SPLIT}" ]]; then
-                    echo "Unknown option $1"
-                    echo "${USAGE}"
-                    exit 1
-                fi
-                ;;
-            --)
+                FOUND_SPLIT=1
                 ARGS=("${ARGS[@]:1}")
                 break
-                ;;
-        esac
-    done
-}
-process_args
+            done
+            if [[ -z "${FOUND_SPLIT}" ]]; then
+                echo "Unknown option $1"
+                echo "${USAGE}"
+                exit 1
+            fi
+            ;;
+
+    esac
+done
+
 
 CLI_ENV=$([[ -t 0 ]]; echo $?)
 
@@ -101,7 +100,7 @@ if [[ -z "$OUTPUT_STRATEGY" ]]; then
     if [[ $CLI_ENV == 0 ]]; then
         OUTPUT_STRATEGY="stdout"
     else
-        OUTPUT_STRATEGY="copypaste"
+        OUTPUT_STRATEGY="xdotool"
     fi
 fi
 
@@ -130,28 +129,33 @@ function output_strategy_pre() {
 }
 
 function output_strategy() {
+    character="$1"
     # Where to send our output
     case "${OUTPUT_STRATEGY}" in
         xdotool)
-            xdotool type --clearmodifiers --window $X_ACTIVE_WINDOW $(cat -)
+            xdotool windowactivate --sync "$X_ACTIVE_WINDOW" type "$character"
             ;;
         copypaste)
+            set +e
+            # If old target was an image or something this will fail. We tried our best to restore our old clipboard
+            # values
             old_clipboard_content_primary="$(xclip -o -selection primary)"
             old_clipboard_content_clipboard="$(xclip -o -selection clipboard)"
+            set -e
 
-            character=$(cat -)
             echo -n "$character" | xclip -i -selection primary
             echo -n "$character" | xclip -i -selection clipboard
-            xdotool windowfocus --sync $X_ACTIVE_WINDOW key --clearmodifiers Shift+Insert sleep 0.05
+            xdotool windowactivate --sync $X_ACTIVE_WINDOW key --clearmodifiers Shift+Insert sleep 0.05
+
             # Put clipboard contents back
-            echo -n $old_clipboard_content_primary | xclip -i -selection primary
-            echo -n $old_clipboard_content_clipboard| xclip -i -selection clipboard
+            echo -n "$old_clipboard_content_primary"   | xclip -i -selection primary
+            echo -n "$old_clipboard_content_clipboard" | xclip -i -selection clipboard
             ;;
         clipboard)
-            cat - | xclip -i -selection clipboard
+            cat "$character" | xclip -i -selection clipboard
             ;;
         stdout|-)
-            cat -
+            cat "$character"
             ;;
         *)
             echo "Unknown output strategy: $OUTPUT_STRATEGY" >&2
@@ -176,7 +180,7 @@ special_char_len=$(
 )
 
 if grep -Fxq "$special_char" "$DIR/altcode.d/emoji_modifiers.meta"; then
-    echo "${special_char}${SKIN_TONE}" | output_strategy
+    output_strategy "${special_char}${SKIN_TONE}"
 else
-    echo "${special_char}" | output_strategy
+    output_strategy "${special_char}"
 fi
