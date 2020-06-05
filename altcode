@@ -133,7 +133,7 @@ function output_strategy() {
     # Where to send our output
     case "${OUTPUT_STRATEGY}" in
         xdotool)
-            xdotool windowactivate --sync "$X_ACTIVE_WINDOW" type "$character"
+            xdotool windowactivate --sync "$X_ACTIVE_WINDOW" type --delay 100 "$character"
             ;;
         copypaste)
             set +e
@@ -145,7 +145,7 @@ function output_strategy() {
 
             echo -n "$character" | xclip -i -selection primary
             echo -n "$character" | xclip -i -selection clipboard
-            xdotool windowactivate --sync $X_ACTIVE_WINDOW key --clearmodifiers Shift+Insert sleep 0.05
+            xdotool windowactivate --sync $X_ACTIVE_WINDOW key --delay 100 --clearmodifiers Shift+Insert sleep 0.05
 
             # Put clipboard contents back
             echo -n "$old_clipboard_content_primary"   | xclip -i -selection primary
