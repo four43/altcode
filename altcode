@@ -165,12 +165,10 @@ function output_strategy() {
 
 output_strategy_pre
 
-special_char=$(
-    cat $altcode_files \
-        | select_char \
-        | sed -n -E -e 's/^(.+) \| [^\|]+$/\1/p' \
-        | tr -d '\n'
-    )
+
+selected="$(cat $altcode_files | select_char)"
+
+special_char=$(echo "$selected" | sed -n -E -e 's/^(.+) \| [^\|]+$/\1/p' | tr -d '\n')
 
 special_char_len=$(
     oLang=$LANG oLcAll=$LC_ALL
